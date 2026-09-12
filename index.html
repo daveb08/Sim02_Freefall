@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Freefall Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Freefall</h1>
+    <p class="subtitle">
+      1D vertical motion under constant gravity &mdash; no air resistance.
+      <span class="sign-note">Up is positive, so falling means <b class="c-v">velocity</b> is negative.</span>
+    </p>
+
+    <!-- Controls: everything visible without scrolling -->
+    <section class="controls">
+      <!-- Initial height y0 -->
+      <label class="slider">
+        <span class="slider-label">Initial height <i>y</i>&#8320;</span>
+        <input id="y0" type="range" min="5" max="100" step="1" value="20" />
+        <input id="y0num" class="numbox" type="number" min="5" max="100" step="1" value="20" />
+        <span class="unit">m</span>
+      </label>
+
+      <!-- Initial velocity v0 (up positive: 0 = drop, +20 = hardest upward toss) -->
+      <label class="slider">
+        <span class="slider-label">Initial velocity <i>v</i>&#8320; <span id="v0mode" class="mode">(drop from rest)</span></span>
+        <input id="v0" type="range" min="0" max="20" step="0.5" value="0" />
+        <input id="v0num" class="numbox" type="number" min="0" max="20" step="0.5" value="0" />
+        <span class="unit">m/s up</span>
+      </label>
+
+      <div class="btn-groups">
+        <div class="buttons">
+          <button id="playPause" class="btn btn-primary" type="button">Play</button>
+          <button id="step" class="btn" type="button" title="Advance one frame (paused)">Step &#9654;&#124;</button>
+          <button id="reset" class="btn" type="button">Reset</button>
+        </div>
+
+        <div class="speeds" role="group" aria-label="Playback speed">
+          <span class="speeds-label">Speed</span>
+          <button class="btn btn-speed" data-speed="0.25" type="button">0.25&times;</button>
+          <button class="btn btn-speed" data-speed="0.5" type="button">0.5&times;</button>
+          <button class="btn btn-speed is-active" data-speed="1" type="button">1&times;</button>
+          <button class="btn btn-speed" data-speed="2" type="button">2&times;</button>
+        </div>
+      </div>
+    </section>
+  </header>
+
+  <!-- Live numeric readout -->
+  <section class="readout" id="readout">
+    <div class="read read-t"><span class="read-label">t</span><span class="read-val" id="valT">0.00</span><span class="read-unit">s</span></div>
+    <div class="read read-y"><span class="read-label">y</span><span class="read-val" id="valY">20.00</span><span class="read-unit">m</span></div>
+    <div class="read read-v"><span class="read-label">v</span><span class="read-val" id="valV">0.00</span><span class="read-unit">m/s</span></div>
+    <div class="read read-a"><span class="read-label">a</span><span class="read-val" id="valA">-9.80</span><span class="read-unit">m/s&sup2;</span></div>
+  </section>
+
+  <!-- Impact banner (shown when the object reaches the ground) -->
+  <section class="impact" id="impact" hidden>
+    <span class="impact-badge">Impact!</span>
+    <span class="impact-text" id="impactText">t = 2.02 s, v = -19.80 m/s</span>
+  </section>
+
+  <!-- Stage: falling-object animation (left) + two live graphs (right) -->
+  <section class="stage">
+    <div class="panel panel-track">
+      <canvas id="track" class="track-canvas"></canvas>
+    </div>
+    <div class="graphs">
+      <canvas id="graphY" class="graph-canvas"></canvas>
+      <canvas id="graphV" class="graph-canvas"></canvas>
+    </div>
+  </section>
+
+  <footer class="hint">
+    The object follows the exact equations of motion:
+    <b class="c-x">y(t) = y&#8320; + v&#8320;t &minus; &frac12;gt&sup2;</b> and
+    <b class="c-v">v(t) = v&#8320; &minus; gt</b>, with acceleration constant at
+    <b class="c-a">&minus;g</b>. Playback speed slows time, not the physics.
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

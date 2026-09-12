@@ -108,6 +108,37 @@
         <button class="btn btn-speed" data-speed="2" type="button">2&times;</button>
       </div>
     </section>
+
+    <!-- ===== Guided activity + vector/display options ===== -->
+    <section class="controls controls-activity">
+      <div class="opt-group">
+        <span class="group-label">Activity</span>
+        <button id="presetToss" class="btn" type="button" aria-pressed="false">Upward toss investigation</button>
+      </div>
+
+      <div class="opt-group" role="group" aria-label="Vector arrows">
+        <span class="group-label">Arrows</span>
+        <label class="check"><input id="showV" type="checkbox" checked />
+          <span>Show <b class="vec-v">v</b> (velocity)</span></label>
+        <label class="check"><input id="showA" type="checkbox" checked />
+          <span>Show <b class="vec-a">a</b> (acceleration)</span></label>
+      </div>
+
+      <div class="opt-group" role="group" aria-label="Display options">
+        <span class="group-label">Options</span>
+        <label class="check"><input id="pauseApex" type="checkbox" />
+          <span>Pause at highest point</span></label>
+        <label class="check"><input id="showFuture" type="checkbox" />
+          <span>Show future curves</span></label>
+      </div>
+
+      <p class="scale-note">
+        Arrow lengths use <b>separate scales</b> (different units) &mdash; watch how each
+        arrow changes over time; don&rsquo;t compare the length of <b class="vec-v">v</b>
+        against <b class="vec-a">a</b>.
+      </p>
+      <p class="apex-hint" id="apexHint" hidden></p>
+    </section>
   </header>
 
   <!-- ===== Live numeric readout (one block per active object) ===== -->
@@ -139,6 +170,16 @@
   <section class="impact" id="impact" hidden>
     <span class="impact-badge" id="impactBadge">Impact!</span>
     <span class="impact-text" id="impactText"></span>
+  </section>
+
+  <!-- Guided-activity prompts (upward toss investigation) -->
+  <section class="activity-panel" id="activityPanel" hidden aria-live="polite">
+    <p class="activity-q" id="activityQuestion">
+      At the highest point, what will the velocity and acceleration be? Explain your prediction.
+    </p>
+    <p class="activity-o" id="activityObserve" hidden>
+      Compare your prediction with the readouts. Is zero velocity the same as zero acceleration?
+    </p>
   </section>
 
   <!-- ===== Stage: falling-object animation (left) + two live graphs (right) ===== -->

@@ -73,7 +73,27 @@ const state = {
   finished: false,
   ranges: { y: [0, 1], v: [0, 1] },
   termLines: [], // terminal-velocity guide lines to draw on the v-graph
+
+  // ---- guided-activity + display options ----
+  showV: true,          // draw the velocity arrow?
+  showA: true,          // draw the acceleration arrow?
+  showFuture: false,    // draw faint future graph curves? (off by default)
+  pauseAtApex: false,   // auto-pause at the velocity-zero crossing (toss)?
+  investigation: false, // "upward toss investigation" activity active?
+  apexT: null,          // time of the v=0 crossing for a single upward toss
+  apexConsumed: false,  // already auto-paused at the apex this run?
+  atApex: false,        // currently frozen at the apex pause?
 };
+
+/* Arrow display scales. Velocity and acceleration have DIFFERENT units, so
+   their arrows use independent px scales — students must NOT compare a v arrow
+   length against an a arrow length. Lengths are capped so fast/large values
+   stay on-screen. In a vacuum a = -g is constant, so the a arrow keeps a
+   constant length (and always points down) throughout the flight. */
+const VEL_SCALE = 2.2;   // px per (m/s)
+const ACC_SCALE = 3.4;   // px per (m/s^2)
+const ARROW_MAX = 54;    // px, max arrow length
+const ARROW_ZERO_EPS = 0.05; // |value| below this reads as exactly zero
 
 /* A slot holds one object's parameters, color, and its precomputed
    trajectory (arrays sampled every DT, plus the exact impact sample). */
@@ -181,6 +201,21 @@ function sampleAt(slot, t) {
   return { y, v, a: -G - slot.k * v * Math.abs(v) };
 }
 
+/* Time of the first velocity-zero crossing on the way up (the highest point of
+   an upward toss), interpolated from the stored samples so it matches the
+   trajectory's own timebase. Returns null if the object never rises (v0 <= 0)
+   or no +->- crossing exists. Samples are uniformly spaced at dt. */
+function findApexTime(slot) {
+  const vs = slot.v, dt = slot.dt;
+  for (let i = 0; i < slot.n - 1; i++) {
+    if (vs[i] >= 0 && vs[i + 1] < 0) {
+      const f = vs[i] / (vs[i] - vs[i + 1]); // fraction of the step to v = 0
+      return (i + f) * dt;
+    }
+  }
+  return null;
+}
+
 /* ============================================================
    DOM references
    ============================================================ */
@@ -207,6 +242,16 @@ const el = {
   impact: document.getElementById("impact"),
   impactBadge: document.getElementById("impactBadge"),
   impactText: document.getElementById("impactText"),
+  // activity + display options
+  presetToss: document.getElementById("presetToss"),
+  showV: document.getElementById("showV"),
+  showA: document.getElementById("showA"),
+  pauseApex: document.getElementById("pauseApex"),
+  showFuture: document.getElementById("showFuture"),
+  apexHint: document.getElementById("apexHint"),
+  activityPanel: document.getElementById("activityPanel"),
+  activityQuestion: document.getElementById("activityQuestion"),
+  activityObserve: document.getElementById("activityObserve"),
   roA: document.getElementById("roA"), roB: document.getElementById("roB"),
   nameA: document.getElementById("nameA"), nameB: document.getElementById("nameB"),
   impA: document.getElementById("impA"), impB: document.getElementById("impB"),
@@ -414,27 +459,60 @@ function drawLane(ctx, slot, laneX, toPx, topPx, groundPx) {
   ctx.strokeStyle = "#fff";
   ctx.stroke();
 
-  // velocity arrow (direction + rough magnitude), hidden once the trajectory
-  // has ended (frozen at impact or at the time limit)
-  const v = s.v;
-  if (Math.abs(v) > 0.05 && state.t < slot.tEnd) {
-    const dir = v < 0 ? 1 : -1; // pixel-down while falling (v < 0)
-    const len = Math.min(44, 8 + Math.abs(v) * 1.4);
-    const ay0 = objY + dir * 15, ay1 = objY + dir * (15 + len);
-    ctx.strokeStyle = slot.color;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(laneX, ay0);
-    ctx.lineTo(laneX, ay1);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(laneX, ay1);
-    ctx.lineTo(laneX - 5, ay1 - dir * 8);
-    ctx.lineTo(laneX + 5, ay1 - dir * 8);
-    ctx.closePath();
-    ctx.fillStyle = slot.color;
-    ctx.fill();
+  // ----- vector arrows -----
+  // Only while airborne: once the trajectory has ended (impact or time limit)
+  // the object is frozen, so we do NOT draw airborne vectors on it.
+  if (state.t < slot.tEnd) {
+    // Velocity arrow LEFT of the object, acceleration arrow RIGHT of it, so
+    // they are separately positioned and never overlap. v = solid, a = dashed
+    // (a line-style difference, not color alone), and each carries its label.
+    if (state.showV) drawVector(ctx, laneX - 18, objY, s.v, VEL_SCALE, slot.color, "v", false, -1);
+    if (state.showA) drawVector(ctx, laneX + 18, objY, s.a, ACC_SCALE, slot.color, "a", true, 1);
   }
+}
+
+/* Draw a labeled vertical vector arrow rooted near (x, yBase). A negative value
+   points down (screen +y); positive points up. Near-zero magnitude is written
+   out ("name = 0") instead of a misleading tiny arrow — e.g. "v = 0" at the
+   highest point, where the acceleration arrow is still drawn. `dashed`
+   distinguishes acceleration from velocity without relying on color; `side`
+   (-1 left / +1 right) places the label clear of the object. */
+function drawVector(ctx, x, yBase, value, scale, color, name, dashed, side) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.font = "800 14px 'Segoe UI', system-ui, sans-serif";
+
+  if (Math.abs(value) < ARROW_ZERO_EPS) {
+    ctx.textAlign = side < 0 ? "right" : "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${name} = 0`, x + side * 4, yBase);
+    ctx.restore();
+    return;
+  }
+
+  const dir = value < 0 ? 1 : -1;                 // pixel-down when negative
+  const len = Math.min(ARROW_MAX, 10 + Math.abs(value) * scale);
+  const y0 = yBase + dir * 4, y1 = yBase + dir * (4 + len);
+
+  ctx.lineWidth = 3;
+  if (dashed) ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // solid arrowhead
+  ctx.beginPath();
+  ctx.moveTo(x, y1);
+  ctx.lineTo(x - 5, y1 - dir * 9);
+  ctx.lineTo(x + 5, y1 - dir * 9);
+  ctx.closePath();
+  ctx.fill();
+
+  // label beside the tail, clear of the object
+  ctx.textAlign = side < 0 ? "right" : "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name, x + side * 6, yBase);
+  ctx.restore();
 }
 
 /* ============================================================
@@ -524,11 +602,14 @@ function drawGraph(g) {
     }
   }
 
-  // ----- each object's curve: solid up to "now", faint to its own impact -----
+  // ----- each object's curve: solid up to "now"; faint future only if asked --
   for (const slot of slots) {
     const tCut = Math.min(state.t, slot.tEnd);
     drawCurve(ctx, g, slot, 0, tCut, tToPx, yToPx, slot.color, 4, 1);
-    if (state.t < slot.tEnd) {
+    // The faint future curve is opt-in ("Show future curves"). Off by default
+    // so students predict rather than read the answer off the graph; it never
+    // appears automatically (including at the highest-point pause).
+    if (state.showFuture && state.t < slot.tEnd) {
       drawCurve(ctx, g, slot, tCut, slot.tEnd, tToPx, yToPx, hexToRgba(slot.color, 0.2), 2.5, 1);
     }
   }
@@ -650,11 +731,38 @@ function tick(ts) {
   const dtWall = (ts - lastTs) / 1000;
   lastTs = ts;
 
+  const prevT = state.t;
   state.t += dtWall * state.speed;
+
+  // Auto-pause at the highest point of a single upward toss, snapping to the
+  // exact interpolated v=0 crossing (not the nearest animation frame). Once
+  // consumed, Play resumes the descent without pausing here again.
+  if (state.pauseAtApex && apexApplicable() && !state.apexConsumed &&
+      state.apexT != null && prevT < state.apexT && state.t >= state.apexT) {
+    state.t = state.apexT;
+    state.apexConsumed = true;
+    pauseAtApexStop();
+    return;
+  }
 
   if (state.t >= state.tMax) { finish(); return; }
   render();
   if (state.playing) rafId = requestAnimationFrame(tick);
+}
+
+/* The highest-point pause only makes sense for a single object thrown upward. */
+function apexApplicable() { return !state.compare && state.v0 > 0; }
+
+/* Freeze exactly at the highest point; all views derive from state.t, so this
+   syncs the animation, the readouts, and the graph playheads together. */
+function pauseAtApexStop() {
+  state.playing = false;
+  state.atApex = true;
+  if (rafId) cancelAnimationFrame(rafId);
+  render();
+  updateActivityUI();
+  setControlsEnabled();
+  setPlayLabel();
 }
 
 /* All active objects have landed: freeze and report. */
@@ -775,6 +883,8 @@ function labelOf(slot) { return slot.params.label || OBJECTS[slot.presetKey].lab
 
 function play() {
   if (state.playing || state.finished) return;
+  // Leaving the highest-point pause: resume the descent and drop the prompt.
+  if (state.atApex) { state.atApex = false; updateActivityUI(); }
   state.playing = true;
   lastTs = null;
   setPlayLabel();
@@ -804,6 +914,10 @@ function rebuild() {
   state.finished = false;
   state.playing = false;
   if (rafId) cancelAnimationFrame(rafId);
+  // Recompute the highest point and reset the apex-pause behavior for this run.
+  state.apexT = apexApplicable() ? findApexTime(slotA) : null;
+  state.apexConsumed = false;
+  state.atApex = false;
   el.impact.hidden = true;
   el.impactBadge.hidden = false; // restore default; banner sets it per-outcome
   el.impA.hidden = true;
@@ -813,6 +927,8 @@ function rebuild() {
   el.roB.classList.remove("is-frozen");
   el.impA.classList.remove("capped");
   el.impB.classList.remove("capped");
+  updateApexAvailability();
+  updateActivityUI();
   render();
   setControlsEnabled();
   setPlayLabel();
@@ -834,12 +950,14 @@ function updateV0Mode() {
 }
 
 function setY0(raw) {
+  leaveInvestigation();
   state.y0 = clamp(parseFloat(raw) || 0, 5, 2000);
   el.y0.value = state.y0;
   el.y0num.value = state.y0;
   rebuild();
 }
 function setV0(raw) {
+  leaveInvestigation();
   state.v0 = clamp(parseFloat(raw) || 0, 0, 20);
   el.v0.value = state.v0;
   el.v0num.value = state.v0;
@@ -873,7 +991,7 @@ function updateCustomPanels() {
   el.customB.hidden = !(state.compare && slotB.presetKey === "custom");
 }
 
-/* Reflect the current state in the control widgets (used on boot). */
+/* Reflect the current state in the control widgets (used on boot + presets). */
 function syncControls() {
   el.y0.value = state.y0; el.y0num.value = state.y0;
   el.v0.value = state.v0; el.v0num.value = state.v0;
@@ -884,7 +1002,63 @@ function syncControls() {
   el.pickB.hidden = !state.compare;
   el.airOn.classList.toggle("is-active", state.air);
   el.airVacuum.classList.toggle("is-active", !state.air);
+  el.airOn.setAttribute("aria-pressed", state.air ? "true" : "false");
+  el.airVacuum.setAttribute("aria-pressed", !state.air ? "true" : "false");
+  // display options
+  el.showV.checked = state.showV;
+  el.showA.checked = state.showA;
+  el.pauseApex.checked = state.pauseAtApex;
+  el.showFuture.checked = state.showFuture;
+  // speed buttons
+  el.speedBtns.forEach((b) =>
+    b.classList.toggle("is-active", parseFloat(b.dataset.speed) === state.speed));
   updateCustomPanels();
+}
+
+/* Enable the highest-point pause only for a single upward toss; otherwise
+   disable the control and explain why. */
+function updateApexAvailability() {
+  const ok = apexApplicable();
+  el.pauseApex.disabled = !ok;
+  el.apexHint.hidden = ok;
+  if (!ok) {
+    el.apexHint.textContent =
+      "“Pause at highest point” applies to a single upward toss " +
+      "(turn off Compare and set v₀ > 0).";
+  }
+}
+
+/* Show/hide the guided-activity prompt panel and its observation line. */
+function updateActivityUI() {
+  el.activityPanel.hidden = !state.investigation;
+  el.activityObserve.hidden = !(state.investigation && state.atApex);
+  el.presetToss.classList.toggle("is-active", state.investigation);
+  el.presetToss.setAttribute("aria-pressed", state.investigation ? "true" : "false");
+}
+
+/* Leaving the investigation setup (via a core physics control) drops the
+   activity prompt; speed/arrow/pause/future toggles do NOT. */
+function leaveInvestigation() {
+  if (state.investigation) { state.investigation = false; updateActivityUI(); }
+}
+
+/* Configure the "upward toss investigation": one object, vacuum, y0 = 20 m,
+   v0 = +15 m/s, paused at t = 0, 0.5x speed, apex-pause armed, future off. */
+function applyTossInvestigation() {
+  state.y0 = 20;
+  state.v0 = 15;
+  state.air = false;      // vacuum
+  state.compare = false;  // single object
+  state.speed = 0.5;
+  applyPreset(slotA, "basketball"); // object is irrelevant in a vacuum
+  state.showV = true;
+  state.showA = true;
+  state.pauseAtApex = true;
+  state.showFuture = false;
+  state.investigation = true;
+  syncControls();
+  rebuild();              // rewinds to t = 0 (paused); recomputes apexT
+  updateActivityUI();
 }
 
 /* ---- listeners ---- */
@@ -893,19 +1067,28 @@ el.y0num.addEventListener("input", (e) => setY0(e.target.value));
 el.v0.addEventListener("input", (e) => setV0(e.target.value));
 el.v0num.addEventListener("input", (e) => setV0(e.target.value));
 
-el.airOn.addEventListener("click", () => { state.air = true; syncControls(); rebuild(); });
-el.airVacuum.addEventListener("click", () => { state.air = false; syncControls(); rebuild(); });
+el.airOn.addEventListener("click", () => { leaveInvestigation(); state.air = true; syncControls(); rebuild(); });
+el.airVacuum.addEventListener("click", () => { leaveInvestigation(); state.air = false; syncControls(); rebuild(); });
 
-el.objA.addEventListener("change", (e) => { applyPreset(slotA, e.target.value); rebuild(); });
-el.objB.addEventListener("change", (e) => { applyPreset(slotB, e.target.value); rebuild(); });
+el.objA.addEventListener("change", (e) => { leaveInvestigation(); applyPreset(slotA, e.target.value); rebuild(); });
+el.objB.addEventListener("change", (e) => { leaveInvestigation(); applyPreset(slotB, e.target.value); rebuild(); });
 
 el.compare.addEventListener("change", (e) => {
+  leaveInvestigation();
   state.compare = e.target.checked;
   el.pickB.hidden = !state.compare;
   if (state.compare) applyPreset(slotB, slotB.presetKey);
   updateCustomPanels();
   rebuild();
 });
+
+// ---- activity + display-option controls ----
+el.presetToss.addEventListener("click", applyTossInvestigation);
+el.showV.addEventListener("change", (e) => { state.showV = e.target.checked; render(); });
+el.showA.addEventListener("change", (e) => { state.showA = e.target.checked; render(); });
+// "Show future curves" is a pure display toggle: re-render only, never rebuild.
+el.showFuture.addEventListener("change", (e) => { state.showFuture = e.target.checked; render(); });
+el.pauseApex.addEventListener("change", (e) => { state.pauseAtApex = e.target.checked; });
 
 [el.mA, el.cdA, el.areaA].forEach((inp) =>
   inp.addEventListener("input", () => { if (slotA.presetKey === "custom") { readCustom(slotA); rebuild(); } }));

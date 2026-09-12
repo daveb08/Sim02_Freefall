@@ -3,6 +3,40 @@
 Notable changes to the Freefall Simulator (sim02 / sim02b). Dates are the
 day the work landed; entries are newest first.
 
+## 2026-09-12 — Upward-toss investigation activity (velocity vs. acceleration)
+
+A focused classroom activity to help students distinguish velocity from
+acceleration during an upward toss, especially at the highest point. Physics
+model unchanged (numerical-solver overhaul remains deferred).
+
+- **"Upward toss investigation" preset**: one object, vacuum, y₀ = 20 m,
+  v₀ = +15 m/s, paused at t = 0, 0.5× speed, with a prediction prompt ("At the
+  highest point, what will the velocity and acceleration be?"). All controls
+  sync to the preset; other configurations remain fully available.
+- **Vector display**: the velocity arrow is now labeled **v** (solid) and a
+  separate **a** arrow (dashed) is drawn on the other side of the object —
+  distinguished by line style and labels, not color. Independent Show v / Show a
+  toggles. A note explains the arrows use separate scales (different units), so
+  their lengths shouldn't be compared. At the highest point the velocity reads
+  "v = 0" while the constant downward acceleration arrow remains. In a vacuum
+  the a arrow stays downward and constant length throughout; frozen (impact or
+  time-limit) states draw no airborne vectors.
+- **Pause at highest point** (checkbox, armed by the preset): during a single
+  upward toss, playback auto-stops at the exact interpolated v = 0 crossing
+  (from the trajectory's own sample times), syncing animation, readouts, and
+  graph playheads. Play resumes the descent without re-pausing; Reset re-arms
+  it. Disabled with an explanation when not a single upward toss.
+- **Show future curves** (checkbox, default off — including in the preset):
+  when off, graphs draw only up to the current time (axes and current-value
+  markers preserved); when on, the faint future preview returns. Pure display
+  toggle — never restarts the sim and never auto-reveals at the apex pause.
+- Controls are keyboard-accessible with associated labels and aria-pressed
+  toggle states. No acceleration graph, quiz, scoring, or accounts added.
+- Verified: ascent (v up, a down), auto-pause at apex (t ≈ 1.531 s,
+  y ≈ 31.480 m, v = 0, a = −9.8, playheads agree), descent (both down), resume,
+  reset, future-curve reveal while paused/playing without changing the
+  trajectory, and that existing drops/comparisons/air/impact labels still work.
+
 ## 2026-09-12 — Time-limit (capped) trajectories separated from landings
 
 A trajectory that reaches `MAX_T` while still airborne (e.g. a feather from

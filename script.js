@@ -634,24 +634,72 @@ function finish() {
   setPlayLabel();
 }
 
+/* Two arrival times count as "equal" only when they differ by less than
+   this tolerance. The sim integrates at a fixed timestep DT = 1/2000 s, so
+   impact times are only resolved to ~DT; identical initial conditions AND
+   identical object parameters produce bit-identical trajectories and an
+   exactly-zero gap (always the case in a vacuum, where motion is
+   mass-independent). We set the tolerance an order of magnitude below DT so
+   only genuinely unresolvable differences read as "equal"; any larger gap is
+   a real, resolvable difference and is reported as such. */
+const ARRIVAL_EQUAL_TOL = DT / 10; // 5e-5 s
+
+/* Fixed-decimal formatting (keeps trailing zeros, unlike fmt); tiny values
+   below half a unit snap to zero to avoid "-0.00". */
+function fixed(n, dp) {
+  if (Math.abs(n) < 0.5 * Math.pow(10, -dp)) n = 0;
+  return n.toFixed(dp);
+}
+/* Fewest decimals (2..4) at which the two times round to different values,
+   so a small-but-real difference never prints as "0.00 s before" and the
+   reported gap (computed from these rounded times below) can't contradict
+   them. Gaps larger than ARRIVAL_EQUAL_TOL always resolve within 4 dp. */
+function gapDecimals(first, last) {
+  let dp = 2;
+  while (dp < 4 && first.toFixed(dp) === last.toFixed(dp)) dp++;
+  return dp;
+}
+
 function showImpactBanner() {
   const slots = activeSlots();
   if (slots.length === 1) {
     const s = slots[0];
     el.impactText.textContent = `${labelOf(s)} landed: t = ${fmt2(s.tImpact)} s, v = ${fmt2(s.vImpact)} m/s`;
-  } else {
-    const [a, b] = slots;
-    const gap = Math.abs(a.tImpact - b.tImpact);
-    if (gap < 0.05) {
+    el.impact.hidden = false;
+    return;
+  }
+
+  const [a, b] = slots;
+  const gap = Math.abs(a.tImpact - b.tImpact);
+
+  if (gap <= ARRIVAL_EQUAL_TOL) {
+    // Arrival times are equal within numerical tolerance. Base the
+    // explanation on the ACTUAL air setting — never assert that air
+    // resistance is absent when it is switched on.
+    const t = fmt2(Math.max(a.tImpact, b.tImpact));
+    if (state.air) {
       el.impactText.textContent =
-        `Both landed together at t ≈ ${fmt2(a.tImpact)} s (same time — no air resistance to tell them apart).`;
+        `Both landed at the same time, t = ${t} s (arrival times equal within numerical tolerance).`;
     } else {
-      const first = a.tImpact < b.tImpact ? a : b;
-      const last = a.tImpact < b.tImpact ? b : a;
       el.impactText.textContent =
-        `${labelOf(first)} landed ${fmt2(gap)} s before ${labelOf(last)} ` +
-        `(${labelOf(first)} ${fmt2(first.tImpact)} s, ${labelOf(last)} ${fmt2(last.tImpact)} s).`;
+        `Both landed at the same time, t = ${t} s. In a vacuum, motion depends only on ` +
+        `initial height and velocity — not mass — so objects released together land together.`;
     }
+  } else {
+    // A real, resolvable difference. Show the gap and both times at the same
+    // precision (enough to render the gap nonzero) so they never contradict
+    // each other, e.g. no "landed 0.00 s before".
+    const first = a.tImpact < b.tImpact ? a : b;
+    const last = a.tImpact < b.tImpact ? b : a;
+    const dp = gapDecimals(first.tImpact, last.tImpact);
+    const fFirst = fixed(first.tImpact, dp);
+    const fLast = fixed(last.tImpact, dp);
+    // Report the gap as the difference of the *displayed* times, so the
+    // banner is internally consistent at whatever precision it shows.
+    const fGap = fixed(Number(fLast) - Number(fFirst), dp);
+    el.impactText.textContent =
+      `${labelOf(first)} landed ${fGap} s before ${labelOf(last)} ` +
+      `(${labelOf(first)} ${fFirst} s, ${labelOf(last)} ${fLast} s).`;
   }
   el.impact.hidden = false;
 }

@@ -142,19 +142,25 @@ function computeTrajectory(slot) {
    sample sits at the exact (non-uniform) impact time, handled separately. */
 function sampleAt(slot, t) {
   const tI = slot.tImpact;
+  const dt = slot.dt, n = slot.n;
   if (t >= tI) {
     const v = slot.vImpact;
-    return { y: 0, v, a: -G - slot.k * v * Math.abs(v) };
+    // A genuine landing rests on the ground (y = 0). A capped/time-limit
+    // endpoint never reached the ground, so freeze at its actual last height
+    // instead of pretending it's on the ground.
+    const y = slot.capped ? slot.y[n - 1] : 0;
+    return { y, v, a: -G - slot.k * v * Math.abs(v) };
   }
-  const dt = slot.dt, n = slot.n;
-  const lastUniformT = (n - 2) * dt;
   let y, v;
-  if (t >= lastUniformT) {
-    // final partial interval: sample[n-2] -> (y=0, vImpact) at tImpact
+  if (!slot.capped && t >= (n - 2) * dt) {
+    // final partial interval before a genuine impact: sample[n-2] -> (0, vImpact)
+    const lastUniformT = (n - 2) * dt;
     const frac = (t - lastUniformT) / (tI - lastUniformT);
     y = slot.y[n - 2] + (0 - slot.y[n - 2]) * frac;
     v = slot.v[n - 2] + (slot.vImpact - slot.v[n - 2]) * frac;
   } else {
+    // uniform interpolation (whole trajectory when capped, since its samples
+    // are evenly spaced right up to the cap time)
     const x = t / dt, i = Math.floor(x), f = x - i;
     y = slot.y[i] + (slot.y[i + 1] - slot.y[i]) * f;
     v = slot.v[i] + (slot.v[i + 1] - slot.v[i]) * f;
@@ -199,8 +205,8 @@ const el = {
 
 /* Per-slot readout element bundles, keyed by slot id. */
 const RO = {
-  A: { name: el.nameA, imp: el.impA, t: el.tA, y: el.yA, v: el.vA, a: el.aA },
-  B: { name: el.nameB, imp: el.impB, t: el.tB, y: el.yB, v: el.vB, a: el.aB },
+  A: { block: el.roA, name: el.nameA, imp: el.impA, t: el.tA, y: el.yA, v: el.vA, a: el.aA },
+  B: { block: el.roB, name: el.nameB, imp: el.impB, t: el.tB, y: el.yB, v: el.vB, a: el.aB },
 };
 
 /* The two graphs share a time axis; each overlays all active objects. */
@@ -593,10 +599,19 @@ function updateReadouts() {
     ro.y.textContent = fmt2(Math.max(0, s.y));
     ro.v.textContent = fmt2(s.v);
     ro.a.textContent = fmt2(s.a);
-    // per-object impact tag, shown as soon as that object lands
-    if (state.t >= slot.tImpact) {
+    // A genuine ground contact (not a time-limit / capped endpoint) freezes
+    // this object. The animation is now stationary but the retained velocity
+    // and acceleration are the AIRBORNE, pre-impact values — this sim models
+    // only the fall, not the collision. Label the frozen readout so those
+    // numbers aren't misread as an object resting on the ground, and make
+    // clear the frozen time is this object's impact time.
+    const landed = state.t >= slot.tImpact && !slot.capped;
+    ro.block.classList.toggle("is-frozen", landed);
+    if (landed) {
       ro.imp.hidden = false;
-      ro.imp.textContent = `Impact  t=${fmt2(slot.tImpact)} s, v=${fmt2(slot.vImpact)} m/s`;
+      ro.imp.textContent =
+        `Immediately before impact — collision not modeled. ` +
+        `Frozen at impact time t = ${fmt2(slot.tImpact)} s.`;
     } else {
       ro.imp.hidden = true;
     }
@@ -739,6 +754,9 @@ function rebuild() {
   el.impact.hidden = true;
   el.impA.hidden = true;
   el.impB.hidden = true;
+  // Clear per-object impact labels/state so a fresh run starts unfrozen.
+  el.roA.classList.remove("is-frozen");
+  el.roB.classList.remove("is-frozen");
   render();
   setControlsEnabled();
   setPlayLabel();

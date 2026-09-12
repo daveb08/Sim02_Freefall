@@ -262,11 +262,28 @@ const el = {
   graphV: document.getElementById("graphV"),
 };
 
-/* Per-slot readout element bundles, keyed by slot id. */
+/* Per-slot readout element bundles, keyed by slot id. `l*` are the label spans
+   (swapped to descriptive wording after a genuine impact). */
 const RO = {
-  A: { block: el.roA, name: el.nameA, imp: el.impA, t: el.tA, y: el.yA, v: el.vA, a: el.aA },
-  B: { block: el.roB, name: el.nameB, imp: el.impB, t: el.tB, y: el.yB, v: el.vB, a: el.aB },
+  A: { block: el.roA, name: el.nameA, imp: el.impA, t: el.tA, y: el.yA, v: el.vA, a: el.aA,
+       lt: document.getElementById("rlAt"), ly: document.getElementById("rlAy"),
+       lv: document.getElementById("rlAv"), la: document.getElementById("rlAa") },
+  B: { block: el.roB, name: el.nameB, imp: el.impB, t: el.tB, y: el.yB, v: el.vB, a: el.aB,
+       lt: document.getElementById("rlBt"), ly: document.getElementById("rlBy"),
+       lv: document.getElementById("rlBv"), la: document.getElementById("rlBa") },
 };
+
+/* Compact symbols during flight; descriptive wording once an object has
+   genuinely impacted the ground. */
+const READ_LABELS_FLIGHT = { t: "t", y: "y", v: "v", a: "a" };
+const READ_LABELS_IMPACT = {
+  t: "Impact time", y: "Height",
+  v: "Velocity at impact", a: "Acceleration just before impact",
+};
+function setReadLabels(ro, labels) {
+  ro.lt.textContent = labels.t; ro.ly.textContent = labels.y;
+  ro.lv.textContent = labels.v; ro.la.textContent = labels.a;
+}
 
 /* The two graphs share a time axis; each overlays all active objects. */
 const GRAPHS = [
@@ -698,17 +715,20 @@ function updateReadouts() {
 
     // The trajectory ends either at a genuine impact or at the time limit.
     const ended = state.t >= slot.tEnd;
+    const impacted = ended && slot.landed;
     ro.block.classList.toggle("is-frozen", ended);
-    if (ended && slot.landed) {
-      // Genuine landing: the retained velocity/acceleration are the AIRBORNE,
-      // pre-impact values (this sim models only the fall, not the collision).
+    ro.block.classList.toggle("is-impact", impacted);
+    // Descriptive labels only after a genuine impact; compact flight symbols
+    // otherwise (restored automatically on reset / input change, since `ended`
+    // becomes false). Applied per object, so one can read "Impact" while the
+    // other is still falling.
+    setReadLabels(ro, impacted ? READ_LABELS_IMPACT : READ_LABELS_FLIGHT);
+    if (impacted) {
       ro.imp.hidden = false;
       ro.imp.classList.remove("capped");
-      ro.imp.textContent =
-        `Immediately before impact — collision not modeled. ` +
-        `Frozen at impact time t = ${fmt2(slot.tImpact)} s.`;
+      ro.imp.textContent = "Impact!";
     } else if (ended && slot.capped) {
-      // Time-limit endpoint: still airborne. No impact badge / time / velocity.
+      // Time-limit endpoint: still airborne — distinct messaging preserved.
       ro.imp.hidden = false;
       ro.imp.classList.add("capped");
       ro.imp.textContent = `Simulation time limit reached — object still airborne.`;
@@ -923,10 +943,13 @@ function rebuild() {
   el.impA.hidden = true;
   el.impB.hidden = true;
   // Clear per-object impact/time-limit labels so a fresh run starts unfrozen.
-  el.roA.classList.remove("is-frozen");
-  el.roB.classList.remove("is-frozen");
+  el.roA.classList.remove("is-frozen", "is-impact");
+  el.roB.classList.remove("is-frozen", "is-impact");
   el.impA.classList.remove("capped");
   el.impB.classList.remove("capped");
+  // Restore the normal compact readout labels for a fresh run.
+  setReadLabels(RO.A, READ_LABELS_FLIGHT);
+  setReadLabels(RO.B, READ_LABELS_FLIGHT);
   updateApexAvailability();
   updateActivityUI();
   render();

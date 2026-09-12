@@ -3,6 +3,24 @@
 Notable changes to the Freefall Simulator (sim02 / sim02b). Dates are the
 day the work landed; entries are newest first.
 
+## 2026-09-12 — Simpler impact wording
+
+Student-facing impact wording simplified; physics and all other behavior
+unchanged.
+
+- The per-object impact tag now reads simply **"Impact!"** (was "Immediately
+  before impact — collision not modeled…"). The phrase "collision not modeled"
+  is gone from the interface.
+- After a genuine impact, that object's frozen readout labels become
+  **"Impact time," "Height," "Velocity at impact,"** and **"Acceleration just
+  before impact"** (compact `t/y/v/a` symbols during flight).
+- Labels/tag are applied per object, so one object can show "Impact" while the
+  other keeps falling; normal labels are restored on reset or input change.
+- Time-limit (capped) messaging is preserved and stays distinct ("Simulation
+  time limit reached — object still airborne," normal labels).
+- Verified labels during flight, after impact, after reset, in a mixed
+  one-landed/one-falling comparison, and for a capped run.
+
 ## 2026-09-12 — Upward-toss investigation activity (velocity vs. acceleration)
 
 A focused classroom activity to help students distinguish velocity from

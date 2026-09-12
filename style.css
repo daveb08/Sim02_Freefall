@@ -348,6 +348,22 @@ select:focus, input:focus, button:focus { outline: 3px solid #93c5fd; outline-of
   background: #fffbeb;
   border-color: #d97706;
 }
+/* After a genuine impact the readout uses descriptive labels ("Velocity at
+   impact", etc.). Stack the rows (label left, value right) so the longer
+   labels stay legible on a projector. */
+.obj-readout.is-impact .reads { flex-direction: column; gap: 6px; }
+.obj-readout.is-impact .read {
+  width: 100%;
+  flex: 1 1 auto;
+  background: transparent;
+  padding: 3px 0;
+}
+.obj-readout.is-impact .read-label {
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--muted);
+}
 
 .reads { display: flex; flex-wrap: wrap; gap: 10px; }
 .read {

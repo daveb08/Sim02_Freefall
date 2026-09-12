@@ -83,7 +83,10 @@ function makeSlot(id, color, presetKey) {
     params: { ...OBJECTS[presetKey] },
     // trajectory (filled by computeTrajectory):
     y: [state.y0], v: [state.v0], n: 1, dt: DT,
-    k: 0, terminal: Infinity, tImpact: 0, vImpact: 0, capped: false,
+    k: 0, terminal: Infinity,
+    landed: false, capped: false,           // outcome: genuine impact vs time-limit
+    tImpact: 0, vImpact: 0,                  // valid ONLY when landed
+    tEnd: 0, yEnd: state.y0, vEnd: state.v0, // trajectory end (impact time or cap)
   };
 }
 const slotA = makeSlot("A", COLORS.objA, "feather");
@@ -109,6 +112,7 @@ function computeTrajectory(slot) {
   const yArr = [state.y0];
   const vArr = [state.v0];
   let y = state.y0, v = state.v0, t = 0;
+  slot.landed = false;
   slot.capped = false;
 
   // Semi-implicit (symplectic) Euler: update velocity first, then position.
@@ -117,19 +121,27 @@ function computeTrajectory(slot) {
     const vN = v + a * dt;
     const yN = y + vN * dt;
     if (yN <= 0) {
-      // Interpolate the exact ground crossing inside this final sub-step.
+      // Genuine ground contact: interpolate the exact crossing in this step.
       const f = y / (y - yN);               // fraction of the step to y = 0
-      slot.tImpact = t + f * dt;
-      slot.vImpact = v + (vN - v) * f;
+      const tI = t + f * dt;
+      const vI = v + (vN - v) * f;
       yArr.push(0);
-      vArr.push(slot.vImpact);
+      vArr.push(vI);
+      slot.landed = true;
+      slot.tImpact = tI; slot.vImpact = vI;
+      slot.tEnd = tI; slot.yEnd = 0; slot.vEnd = vI;
       break;
     }
     y = yN; v = vN; t += dt;
     yArr.push(y);
     vArr.push(v);
-    if (t > MAX_T) {                        // never actually lands (rare)
-      slot.tImpact = t; slot.vImpact = v; slot.capped = true; break;
+    if (t > MAX_T) {
+      // Time limit reached while still airborne — this is NOT a landing.
+      // Keep the real final state; tImpact/vImpact stay null (see slot.landed).
+      slot.capped = true;
+      slot.tImpact = null; slot.vImpact = null;
+      slot.tEnd = t; slot.yEnd = y; slot.vEnd = v;
+      break;
     }
   }
   slot.y = yArr;
@@ -141,26 +153,27 @@ function computeTrajectory(slot) {
    its precomputed trajectory. Times 0..(n-2)*dt are uniform; the very last
    sample sits at the exact (non-uniform) impact time, handled separately. */
 function sampleAt(slot, t) {
-  const tI = slot.tImpact;
   const dt = slot.dt, n = slot.n;
-  if (t >= tI) {
-    const v = slot.vImpact;
-    // A genuine landing rests on the ground (y = 0). A capped/time-limit
-    // endpoint never reached the ground, so freeze at its actual last height
-    // instead of pretending it's on the ground.
-    const y = slot.capped ? slot.y[n - 1] : 0;
-    return { y, v, a: -G - slot.k * v * Math.abs(v) };
+  const tEnd = slot.tEnd;
+  if (t >= tEnd) {
+    // Frozen at the trajectory's final state: the ground (y = 0) for a genuine
+    // landing, or the actual airborne state for a time-limited (capped) run.
+    // No assumption that the last sample is ground contact.
+    const v = slot.vEnd;
+    return { y: slot.yEnd, v, a: -G - slot.k * v * Math.abs(v) };
   }
   let y, v;
-  if (!slot.capped && t >= (n - 2) * dt) {
-    // final partial interval before a genuine impact: sample[n-2] -> (0, vImpact)
+  if (slot.landed && t >= (n - 2) * dt) {
+    // Final partial interval before a genuine impact only: interpolate
+    // sample[n-2] -> (y = 0, vEnd) at the exact impact time.
     const lastUniformT = (n - 2) * dt;
-    const frac = (t - lastUniformT) / (tI - lastUniformT);
+    const frac = (t - lastUniformT) / (tEnd - lastUniformT);
     y = slot.y[n - 2] + (0 - slot.y[n - 2]) * frac;
-    v = slot.v[n - 2] + (slot.vImpact - slot.v[n - 2]) * frac;
+    v = slot.v[n - 2] + (slot.vEnd - slot.v[n - 2]) * frac;
   } else {
-    // uniform interpolation (whole trajectory when capped, since its samples
-    // are evenly spaced right up to the cap time)
+    // Uniform interpolation. Covers every capped-trajectory step (evenly
+    // spaced right up to the cap) and every non-final landing step — never
+    // interpolates toward y = 0 for a capped run.
     const x = t / dt, i = Math.floor(x), f = x - i;
     y = slot.y[i] + (slot.y[i + 1] - slot.y[i]) * f;
     v = slot.v[i] + (slot.v[i + 1] - slot.v[i]) * f;
@@ -192,6 +205,7 @@ const el = {
   reset: document.getElementById("reset"),
   speedBtns: Array.from(document.querySelectorAll(".btn-speed")),
   impact: document.getElementById("impact"),
+  impactBadge: document.getElementById("impactBadge"),
   impactText: document.getElementById("impactText"),
   roA: document.getElementById("roA"), roB: document.getElementById("roB"),
   nameA: document.getElementById("nameA"), nameB: document.getElementById("nameB"),
@@ -268,7 +282,7 @@ function padRange(lo, hi, includeZero, padFrac = 0.12) {
 function computeRanges() {
   const slots = activeSlots();
 
-  state.tMax = Math.max(...slots.map((s) => s.tImpact));
+  state.tMax = Math.max(...slots.map((s) => s.tEnd));
 
   // Height axis: ground up to the highest point reached. Both objects share
   // y0 and v0, so their peak is the same (above y0 only for an upward toss).
@@ -276,14 +290,14 @@ function computeRanges() {
   state.yTop = peak;
   state.ranges.y = [0, peak * 1.06];
 
-  // Velocity axis: from the most negative impact velocity up to the launch
-  // velocity. Also fold in terminal-velocity guide lines when air is on and
-  // the object actually gets close to terminal within this drop.
-  let vMin = Math.min(0, ...slots.map((s) => s.vImpact));
+  // Velocity axis: from the most negative final velocity (at impact, or at the
+  // time limit for a capped run) up to the launch velocity. Also fold in
+  // terminal-velocity guide lines when air is on and the object gets close.
+  let vMin = Math.min(0, ...slots.map((s) => s.vEnd));
   const vMax = Math.max(0, state.v0);
   state.termLines = [];
   for (const s of slots) {
-    if (state.air && isFinite(s.terminal) && Math.abs(s.vImpact) >= 0.5 * s.terminal) {
+    if (state.air && isFinite(s.terminal) && Math.abs(s.vEnd) >= 0.5 * s.terminal) {
       const vt = -s.terminal; // terminal velocity points down => negative
       state.termLines.push({ slot: s, v: vt });
       if (vt < vMin) vMin = vt;
@@ -382,8 +396,8 @@ function drawLane(ctx, slot, laneX, toPx, topPx, groundPx) {
   ctx.textBaseline = "bottom";
   ctx.fillText(slot.params.label || OBJECTS[slot.presetKey].label, laneX, topPx - 6);
 
-  // current object state (clamped to its own impact once it has landed)
-  const tShown = Math.min(state.t, slot.tImpact);
+  // current object state (clamped to its own trajectory end — impact or cap)
+  const tShown = Math.min(state.t, slot.tEnd);
   const s = sampleAt(slot, tShown);
   const objY = toPx(Math.max(0, s.y));
 
@@ -400,9 +414,10 @@ function drawLane(ctx, slot, laneX, toPx, topPx, groundPx) {
   ctx.strokeStyle = "#fff";
   ctx.stroke();
 
-  // velocity arrow (direction + rough magnitude), hidden once landed
+  // velocity arrow (direction + rough magnitude), hidden once the trajectory
+  // has ended (frozen at impact or at the time limit)
   const v = s.v;
-  if (Math.abs(v) > 0.05 && state.t < slot.tImpact) {
+  if (Math.abs(v) > 0.05 && state.t < slot.tEnd) {
     const dir = v < 0 ? 1 : -1; // pixel-down while falling (v < 0)
     const len = Math.min(44, 8 + Math.abs(v) * 1.4);
     const ay0 = objY + dir * 15, ay1 = objY + dir * (15 + len);
@@ -511,10 +526,10 @@ function drawGraph(g) {
 
   // ----- each object's curve: solid up to "now", faint to its own impact -----
   for (const slot of slots) {
-    const tCut = Math.min(state.t, slot.tImpact);
+    const tCut = Math.min(state.t, slot.tEnd);
     drawCurve(ctx, g, slot, 0, tCut, tToPx, yToPx, slot.color, 4, 1);
-    if (state.t < slot.tImpact) {
-      drawCurve(ctx, g, slot, tCut, slot.tImpact, tToPx, yToPx, hexToRgba(slot.color, 0.2), 2.5, 1);
+    if (state.t < slot.tEnd) {
+      drawCurve(ctx, g, slot, tCut, slot.tEnd, tToPx, yToPx, hexToRgba(slot.color, 0.2), 2.5, 1);
     }
   }
 
@@ -528,7 +543,7 @@ function drawGraph(g) {
 
   // ----- current-value markers -----
   for (const slot of slots) {
-    const tShown = Math.min(state.t, slot.tImpact);
+    const tShown = Math.min(state.t, slot.tEnd);
     const my = yToPx(g.get(slot, tShown));
     ctx.beginPath();
     ctx.fillStyle = slot.color;
@@ -592,28 +607,33 @@ function updateReadouts() {
 
   for (const slot of slots) {
     const ro = RO[slot.id];
-    const tShown = Math.min(state.t, slot.tImpact);
+    const tShown = Math.min(state.t, slot.tEnd);
     const s = sampleAt(slot, tShown);
     ro.name.textContent = slot.params.label || OBJECTS[slot.presetKey].label;
     ro.t.textContent = fmt2(tShown);
     ro.y.textContent = fmt2(Math.max(0, s.y));
     ro.v.textContent = fmt2(s.v);
     ro.a.textContent = fmt2(s.a);
-    // A genuine ground contact (not a time-limit / capped endpoint) freezes
-    // this object. The animation is now stationary but the retained velocity
-    // and acceleration are the AIRBORNE, pre-impact values — this sim models
-    // only the fall, not the collision. Label the frozen readout so those
-    // numbers aren't misread as an object resting on the ground, and make
-    // clear the frozen time is this object's impact time.
-    const landed = state.t >= slot.tImpact && !slot.capped;
-    ro.block.classList.toggle("is-frozen", landed);
-    if (landed) {
+
+    // The trajectory ends either at a genuine impact or at the time limit.
+    const ended = state.t >= slot.tEnd;
+    ro.block.classList.toggle("is-frozen", ended);
+    if (ended && slot.landed) {
+      // Genuine landing: the retained velocity/acceleration are the AIRBORNE,
+      // pre-impact values (this sim models only the fall, not the collision).
       ro.imp.hidden = false;
+      ro.imp.classList.remove("capped");
       ro.imp.textContent =
         `Immediately before impact — collision not modeled. ` +
         `Frozen at impact time t = ${fmt2(slot.tImpact)} s.`;
+    } else if (ended && slot.capped) {
+      // Time-limit endpoint: still airborne. No impact badge / time / velocity.
+      ro.imp.hidden = false;
+      ro.imp.classList.add("capped");
+      ro.imp.textContent = `Simulation time limit reached — object still airborne.`;
     } else {
       ro.imp.hidden = true;
+      ro.imp.classList.remove("capped");
     }
   }
 }
@@ -675,16 +695,49 @@ function gapDecimals(first, last) {
   return dp;
 }
 
+/* Describe a time-limited (capped) object without claiming it landed. */
+function cappedDesc(s) {
+  return `${labelOf(s)} reached the ${MAX_T} s time limit still airborne ` +
+         `(y = ${fmt2(s.yEnd)} m, v = ${fmt2(s.vEnd)} m/s)`;
+}
+
 function showImpactBanner() {
   const slots = activeSlots();
+  // The "Impact!" badge only makes sense when every active object genuinely
+  // landed; hide it if any object hit the time limit instead.
+  const allLanded = slots.every((s) => s.landed);
+  el.impactBadge.hidden = !allLanded;
+
   if (slots.length === 1) {
     const s = slots[0];
-    el.impactText.textContent = `${labelOf(s)} landed: t = ${fmt2(s.tImpact)} s, v = ${fmt2(s.vImpact)} m/s`;
+    el.impactText.textContent = s.landed
+      ? `${labelOf(s)} landed: t = ${fmt2(s.tImpact)} s, v = ${fmt2(s.vImpact)} m/s`
+      : `${cappedDesc(s)}.`;
     el.impact.hidden = false;
     return;
   }
 
   const [a, b] = slots;
+
+  // Mixed / capped outcomes: report what happened to each, without inventing
+  // an arrival-time difference between a landing and a non-landing.
+  if (!a.landed || !b.landed) {
+    if (!a.landed && !b.landed) {
+      el.impactText.textContent =
+        `Neither object landed within the ${MAX_T} s time limit. ` +
+        `${cappedDesc(a)}; ${cappedDesc(b)}.`;
+    } else {
+      const L = a.landed ? a : b;   // the one that landed
+      const C = a.landed ? b : a;   // the one that hit the cap
+      el.impactText.textContent =
+        `${labelOf(L)} landed at t = ${fmt2(L.tImpact)} s (v = ${fmt2(L.vImpact)} m/s). ` +
+        `${cappedDesc(C)}.`;
+    }
+    el.impact.hidden = false;
+    return;
+  }
+
+  // Both genuinely landed — compare their arrival times.
   const gap = Math.abs(a.tImpact - b.tImpact);
 
   if (gap <= ARRIVAL_EQUAL_TOL) {
@@ -752,11 +805,14 @@ function rebuild() {
   state.playing = false;
   if (rafId) cancelAnimationFrame(rafId);
   el.impact.hidden = true;
+  el.impactBadge.hidden = false; // restore default; banner sets it per-outcome
   el.impA.hidden = true;
   el.impB.hidden = true;
-  // Clear per-object impact labels/state so a fresh run starts unfrozen.
+  // Clear per-object impact/time-limit labels so a fresh run starts unfrozen.
   el.roA.classList.remove("is-frozen");
   el.roB.classList.remove("is-frozen");
+  el.impA.classList.remove("capped");
+  el.impB.classList.remove("capped");
   render();
   setControlsEnabled();
   setPlayLabel();

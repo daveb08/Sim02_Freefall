@@ -290,10 +290,17 @@ select:focus, input:focus, button:focus { outline: 3px solid #93c5fd; outline-of
   padding: 3px 10px;
   border-radius: 6px;
 }
-/* A genuinely landed object's readout is frozen at impact: flag it subtly so
-   the retained pre-impact numbers aren't read as motion, and so the landed
-   object stands out from one still falling in a two-object comparison. */
+/* A frozen object's readout (impact OR time limit) is flagged subtly so the
+   retained numbers aren't read as live motion, and so a stopped object stands
+   out from one still falling in a two-object comparison. */
 .obj-readout.is-frozen { background: #fff7f7; }
+/* A time-limit (capped) note is NOT an impact: use a neutral amber, not the
+   red impact styling, and don't imply a landing. */
+.obj-impact.capped {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #d97706;
+}
 
 .reads { display: flex; flex-wrap: wrap; gap: 10px; }
 .read {

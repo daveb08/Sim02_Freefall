@@ -3,6 +3,35 @@
 Notable changes to the Freefall Simulator (sim02 / sim02b). Dates are the
 day the work landed; entries are newest first.
 
+## 2026-09-12 — Time-limit (capped) trajectories separated from landings
+
+A trajectory that reaches `MAX_T` while still airborne (e.g. a feather from
+2000 m in air) was stored as an impact, and `sampleAt()` then reported `y = 0`
+— the UI falsely showed a landing. Ground contact is now represented
+separately from a time-limit ending.
+
+- Each object now carries `landed` (genuine ground contact) plus `tEnd`,
+  `yEnd`, `vEnd` (the true final time/height/velocity of the trajectory,
+  whether it ends at impact or the cap). `tImpact`/`vImpact` are valid only
+  when `landed`.
+- **`sampleAt()`** freezes at the real final state (`yEnd`, `vEnd`); it only
+  interpolates toward `y = 0` for a genuine landing — never for a capped run.
+  Samples immediately before and at the cap are continuous (no teleport).
+- Graph ranges, graph endpoints, track clamping, playback completion, and the
+  playhead all use `tEnd` instead of `tImpact`.
+- **Readouts**: a capped object shows "Simulation time limit reached — object
+  still airborne." (neutral amber, not the red impact styling) with no impact
+  badge, landing time, or impact velocity. Genuine-landing pre-impact labeling
+  is unchanged.
+- **Comparison banner**: handles one-landed/one-capped and both-capped without
+  inventing an arrival-time difference; the "Impact!" badge is hidden unless
+  every active object genuinely landed.
+- The `MAX_T` cap is retained (bounded duration); Reset clears all
+  labels/flags.
+- Verified: feather from 2000 m (airborne at cap, y ≈ 1738 m, no teleport);
+  feather vs hammer from 2000 m (hammer lands, feather capped); ordinary 20 m
+  drops in vacuum and air (genuine impacts unchanged); continuity at the cap.
+
 ## 2026-09-12 — Post-landing readout interpretation
 
 Clarify what the readouts mean after an object reaches the ground, so the

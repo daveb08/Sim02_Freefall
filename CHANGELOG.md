@@ -3,6 +3,15 @@
 Notable changes to the Freefall Simulator (sim02 / sim02b). Dates are the
 day the work landed; entries are newest first.
 
+## 2026-09-13 - Taller animation and cliff launches
+
+- Moved setup and playback controls above the animation and graphs; placed activity/display options in an expandable panel. Readouts remain below the taller animation. Allow scrolling when needed rather than clipping content.
+- Refit canvases when panel sizes change without rebuilding trajectories.
+- Initial position now accepts 0 m; initial velocity accepts -20 to +20 m/s with downward-throw labeling.
+- Added ground position (-2000 to 0 m). Launching at 0 m with ground at -20 m allows negative positions. Sampling, impact detection, graphs, ruler, and readouts use the selected ground coordinate.
+- Ground remains 0 by default; the upward-toss investigation restores ground to 0. The integration method and time cap are retained.
+- Checked rendered layout in Chrome and JavaScript syntax. Focused checks covered negative-position readouts, cliff impact (0 m, -10 m/s, ground -20 m: 1.24283 s in vacuum), reset, air comparisons, ordinary drops, and the upward-toss activity.
+
 ## 2026-09-13 — Two-column layout (fits 1280×800, no scrolling)
 
 Reflowed the page so it fits a ~1280×800 Canvas iframe with no scrolling

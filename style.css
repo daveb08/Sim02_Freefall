@@ -562,3 +562,36 @@ body.app {
   .col-right { grid-template-rows: auto auto; }
   .graph-cell { min-height: 240px; }
 }
+
+/* Classroom layout: full-width setup, tall track, and stacked graphs. */
+body.app { min-height: 100vh; height: auto; overflow: visible; }
+.controls-area { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(580px, 1.4fr); gap: 6px; }
+.controls-objects { gap: 8px 12px; }
+.controls-objects .select { min-width: 120px; width: 150px; }
+.controls-objects .check { max-width: 120px; }
+.custom-panels { grid-column: 1 / -1; }
+.custom-panels:has(.custom[hidden]):not(:has(.custom:not([hidden]))) { display: none; }
+.controls-transport { grid-column: 1; }
+.activity-options { grid-column: 2; border: 1px solid var(--line); border-radius: 8px; background: white; align-self: start; }
+.activity-options summary { padding: 9px 12px; font-weight: 700; cursor: pointer; font-size: 14px; }
+.activity-options summary:focus-visible { outline: 3px solid #93c5fd; }
+.activity-options .controls { border: 0; }
+.layout { flex: none; grid-template-columns: minmax(420px, 42%) minmax(0, 1fr); min-height: 570px; height: calc(100vh - 230px); }
+.col-left { overflow: visible; }
+.panel-track { min-height: 310px; }
+.readouts { flex-wrap: nowrap; }
+.obj-readout { min-width: 0; flex: 1 1 0; }
+.reads { display: grid; grid-template-columns: 1fr 1fr; }
+.read { min-width: 0; padding: 2px 4px; }
+.obj-readout.is-impact .reads { display: flex; }
+.obj-readout.is-impact .read-label { font-size: 13px; }
+.col-right { min-height: 570px; }
+@media (max-width: 1100px) {
+  .controls-area { grid-template-columns: 1fr; }
+  .controls-transport, .activity-options { grid-column: 1; }
+}
+@media (max-width: 1000px) {
+  .layout { height: auto; grid-template-columns: 1fr; }
+  .col-right { min-height: 500px; }
+}
+.ground-controls { grid-column: 1 / -1; align-items: center; font-size: 13px; }

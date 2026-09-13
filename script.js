@@ -10,9 +10,9 @@
    The whole sim (including the no-drag case) uses the same integrator,
    so behavior is consistent whether air is on or off.
 
-   Sign convention (unchanged): UP is positive, the ground is y = 0. A
+   Sign convention (unchanged): UP is positive, the ground is y = state.ground. A
    falling object has negative velocity; y is reported as height above
-   ground and is always >= 0; the sim stops exactly when y = 0.
+   ground and is at or above the selected ground; the sim stops exactly at the selected ground.
 
    Equation of motion (per object), integrated with semi-implicit Euler:
        drag magnitude = 0.5 * Cd * rho * A * v^2   (opposes motion)
@@ -61,6 +61,7 @@ const COLORS = {
    Simulation state + the two object "slots"
    ============================================================ */
 const state = {
+  ground: 0,     // Ground coordinate; negative values allow falls below the origin.
   y0: 20,        // initial height (m)
   v0: 0,         // initial velocity (m/s, + = up)
   air: true,     // air resistance on? (rho = RHO_SEA when true, else 0)
@@ -135,21 +136,31 @@ function computeTrajectory(slot) {
   slot.landed = false;
   slot.capped = false;
 
+  // At ground level, only an upward launch has an airborne trajectory.
+  // Keep an immediate contact at t=0 without integrating below the ground.
+  if (y === state.ground && v <= 0) {
+    slot.landed = true;
+    slot.tImpact = slot.tEnd = 0;
+    slot.vImpact = slot.vEnd = v;
+    slot.yEnd = state.ground;
+    slot.y = yArr; slot.v = vArr; slot.n = 1;
+    return;
+  }
   // Semi-implicit (symplectic) Euler: update velocity first, then position.
   while (true) {
     const a = -G - k * v * Math.abs(v);     // drag always opposes velocity
     const vN = v + a * dt;
     const yN = y + vN * dt;
-    if (yN <= 0) {
+    if (yN <= state.ground) {
       // Genuine ground contact: interpolate the exact crossing in this step.
-      const f = y / (y - yN);               // fraction of the step to y = 0
+      const f = (y - state.ground) / (y - yN);               // fraction of the step to the ground
       const tI = t + f * dt;
       const vI = v + (vN - v) * f;
-      yArr.push(0);
+      yArr.push(state.ground);
       vArr.push(vI);
       slot.landed = true;
       slot.tImpact = tI; slot.vImpact = vI;
-      slot.tEnd = tI; slot.yEnd = 0; slot.vEnd = vI;
+      slot.tEnd = tI; slot.yEnd = state.ground; slot.vEnd = vI;
       break;
     }
     y = yN; v = vN; t += dt;
@@ -177,7 +188,7 @@ function sampleAt(slot, t) {
   const tEnd = slot.tEnd;
   if (t >= tEnd) {
     // Frozen at the trajectory's final state: the ground (y = 0) for a genuine
-    // landing, or the actual airborne state for a time-limited (capped) run.
+    // landing at the selected ground, or the actual airborne state for a time-limited (capped) run.
     // No assumption that the last sample is ground contact.
     const v = slot.vEnd;
     return { y: slot.yEnd, v, a: -G - slot.k * v * Math.abs(v) };
@@ -188,7 +199,7 @@ function sampleAt(slot, t) {
     // sample[n-2] -> (y = 0, vEnd) at the exact impact time.
     const lastUniformT = (n - 2) * dt;
     const frac = (t - lastUniformT) / (tEnd - lastUniformT);
-    y = slot.y[n - 2] + (0 - slot.y[n - 2]) * frac;
+    y = slot.y[n - 2] + (slot.yEnd - slot.y[n - 2]) * frac;
     v = slot.v[n - 2] + (slot.vEnd - slot.v[n - 2]) * frac;
   } else {
     // Uniform interpolation. Covers every capped-trajectory step (evenly
@@ -220,6 +231,7 @@ function findApexTime(slot) {
    DOM references
    ============================================================ */
 const el = {
+  ground: document.getElementById("ground"),
   y0: document.getElementById("y0"),
   y0num: document.getElementById("y0num"),
   v0: document.getElementById("v0"),
@@ -277,7 +289,7 @@ const RO = {
    genuinely impacted the ground. */
 const READ_LABELS_FLIGHT = { t: "t", y: "y", v: "v", a: "a" };
 const READ_LABELS_IMPACT = {
-  t: "Impact time", y: "Height",
+  t: "Impact time", y: "Position",
   v: "Velocity at impact", a: "Acceleration just before impact",
 };
 function setReadLabels(ro, labels) {
@@ -287,7 +299,7 @@ function setReadLabels(ro, labels) {
 
 /* The two graphs share a time axis; each overlays all active objects. */
 const GRAPHS = [
-  { key: "y", canvas: el.graphY, title: "Height",   unit: "m",   rangeKey: "y", get: (s, t) => sampleAt(s, t).y, terminal: false },
+  { key: "y", canvas: el.graphY, title: "Position y",   unit: "m",   rangeKey: "y", get: (s, t) => sampleAt(s, t).y, terminal: false },
   { key: "v", canvas: el.graphV, title: "Velocity", unit: "m/s", rangeKey: "v", get: (s, t) => sampleAt(s, t).v, terminal: true  },
 ];
 
@@ -349,13 +361,13 @@ function computeRanges() {
   // Height axis: ground up to the highest point reached. Both objects share
   // y0 and v0, so their peak is the same (above y0 only for an upward toss).
   const peak = state.v0 > 0 ? state.y0 + (state.v0 * state.v0) / (2 * G) : state.y0;
-  state.yTop = peak;
-  state.ranges.y = [0, peak * 1.06];
+  state.yTop = Math.max(1, peak); // Nonzero display scale for a ground-level start.
+  state.ranges.y = [state.ground, state.yTop + 0.06 * (state.yTop - state.ground)];
 
   // Velocity axis: from the most negative final velocity (at impact, or at the
   // time limit for a capped run) up to the launch velocity. Also fold in
   // terminal-velocity guide lines when air is on and the object gets close.
-  let vMin = Math.min(0, ...slots.map((s) => s.vEnd));
+  let vMin = Math.min(0, state.v0, ...slots.map((s) => s.vEnd));
   const vMax = Math.max(0, state.v0);
   state.termLines = [];
   for (const s of slots) {
@@ -377,24 +389,24 @@ function drawTrack() {
 
   const slots = activeSlots();
   const m = { l: 58, r: 22, t: 40, b: 40 };
-  const yTop = state.yTop * 1.06;          // meters at the top of the track
+  const yTop = state.ranges.y[1];          // meters at the top of the track
   const groundPx = h - m.b;
   const topPx = m.t;
-  const toPx = (yMeters) => groundPx - (yMeters / yTop) * (groundPx - topPx);
+  const toPx = (yMeters) => groundPx - ((yMeters - state.ground) / (yTop - state.ground)) * (groundPx - topPx);
 
   // ---- title ----
   ctx.fillStyle = COLORS.muted;
   ctx.font = "700 14px 'Segoe UI', system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("Height (m)", m.l - 44, 22);
+  ctx.fillText("Position y (m)", m.l - 44, 22);
 
   // ---- ruler ticks in meters ----
-  const step = niceStep(yTop, 10);
+  const step = niceStep(yTop - state.ground, 10);
   ctx.font = "600 13px 'Segoe UI', system-ui, sans-serif";
   const railX = m.l;
   const areaRight = w - m.r;
-  for (let val = 0; val <= yTop + 1e-9; val += step) {
+  for (let val = Math.ceil(state.ground / step) * step; val <= yTop + 1e-9; val += step) {
     const py = toPx(val);
     ctx.strokeStyle = COLORS.line;
     ctx.lineWidth = 1;
@@ -461,7 +473,7 @@ function drawLane(ctx, slot, laneX, toPx, topPx, groundPx) {
   // current object state (clamped to its own trajectory end — impact or cap)
   const tShown = Math.min(state.t, slot.tEnd);
   const s = sampleAt(slot, tShown);
-  const objY = toPx(Math.max(0, s.y));
+  const objY = toPx(s.y);
 
   // glow + body
   ctx.beginPath();
@@ -554,7 +566,7 @@ function drawGraph(g) {
 
   const rect = plotRect(w, h);
   const [yLo, yHi] = state.ranges[g.rangeKey];
-  const tMax = state.tMax;
+  const tMax = Math.max(1, state.tMax); // Display axis only; actual duration may be zero.
   const slots = activeSlots();
 
   const tToPx = (t) => rect.left + (t / tMax) * rect.width;
@@ -709,7 +721,7 @@ function updateReadouts() {
     const s = sampleAt(slot, tShown);
     ro.name.textContent = slot.params.label || OBJECTS[slot.presetKey].label;
     ro.t.textContent = fmt2(tShown);
-    ro.y.textContent = fmt2(Math.max(0, s.y));
+    ro.y.textContent = fmt2(s.y);
     ro.v.textContent = fmt2(s.v);
     ro.a.textContent = fmt2(s.a);
 
@@ -969,19 +981,19 @@ function setControlsEnabled() {
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
 function updateV0Mode() {
-  el.v0mode.textContent = state.v0 > 0 ? "(toss upward)" : "(drop from rest)";
+  el.v0mode.textContent = state.v0 > 0 ? "(toss upward)" : state.v0 < 0 ? "(throw downward)" : "(drop from rest)";
 }
 
 function setY0(raw) {
   leaveInvestigation();
-  state.y0 = clamp(parseFloat(raw) || 0, 5, 2000);
+  state.y0 = clamp(parseFloat(raw) || 0, 0, 2000);
   el.y0.value = state.y0;
   el.y0num.value = state.y0;
   rebuild();
 }
 function setV0(raw) {
   leaveInvestigation();
-  state.v0 = clamp(parseFloat(raw) || 0, 0, 20);
+  state.v0 = clamp(parseFloat(raw) || 0, -20, 20);
   el.v0.value = state.v0;
   el.v0num.value = state.v0;
   updateV0Mode();
@@ -1016,6 +1028,7 @@ function updateCustomPanels() {
 
 /* Reflect the current state in the control widgets (used on boot + presets). */
 function syncControls() {
+  el.ground.value = state.ground;
   el.y0.value = state.y0; el.y0num.value = state.y0;
   el.v0.value = state.v0; el.v0num.value = state.v0;
   updateV0Mode();
@@ -1068,6 +1081,7 @@ function leaveInvestigation() {
 /* Configure the "upward toss investigation": one object, vacuum, y0 = 20 m,
    v0 = +15 m/s, paused at t = 0, 0.5x speed, apex-pause armed, future off. */
 function applyTossInvestigation() {
+  state.ground = 0;
   state.y0 = 20;
   state.v0 = 15;
   state.air = false;      // vacuum
@@ -1085,6 +1099,12 @@ function applyTossInvestigation() {
 }
 
 /* ---- listeners ---- */
+el.ground.addEventListener("input", (e) => {
+  leaveInvestigation();
+  state.ground = clamp(parseFloat(e.target.value) || 0, -2000, 0);
+  el.ground.value = state.ground;
+  rebuild();
+});
 el.y0.addEventListener("input", (e) => setY0(e.target.value));
 el.y0num.addEventListener("input", (e) => setY0(e.target.value));
 el.v0.addEventListener("input", (e) => setV0(e.target.value));
@@ -1149,3 +1169,11 @@ applyPreset(slotA, slotA.presetKey);
 applyPreset(slotB, slotB.presetKey);
 syncControls();
 rebuild();
+
+// Refit canvases when controls expand or readout labels change panel sizes.
+// This observes layout only; it never rebuilds trajectories or advances time.
+const panelResizeObserver = new ResizeObserver(() => {
+  if (resizeRaf) cancelAnimationFrame(resizeRaf);
+  resizeRaf = requestAnimationFrame(render);
+});
+document.querySelectorAll('.panel-track, .graph-cell').forEach(panel => panelResizeObserver.observe(panel));

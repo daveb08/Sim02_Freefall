@@ -15,23 +15,20 @@
     </p>
   </header>
 
-  <main class="layout">
-    <!-- ===== LEFT: controls + animation + readouts ===== -->
-    <section class="col col-left">
       <div class="controls-area">
         <!-- Setup: initial height / velocity -->
         <section class="controls">
           <label class="slider">
-            <span class="slider-label">Initial height <i>y</i>&#8320;</span>
-            <input id="y0" type="range" min="5" max="2000" step="5" value="20" />
-            <input id="y0num" class="numbox" type="number" min="5" max="2000" step="5" value="20" />
+            <span class="slider-label">Initial position <i>y</i>&#8320;</span>
+            <input id="y0" type="range" min="0" max="2000" step="5" value="20" />
+            <input id="y0num" class="numbox" type="number" min="0" max="2000" step="5" value="20" />
             <span class="unit">m</span>
           </label>
           <label class="slider">
             <span class="slider-label">Initial velocity <i>v</i>&#8320; <span id="v0mode" class="mode">(drop from rest)</span></span>
-            <input id="v0" type="range" min="0" max="20" step="0.5" value="0" />
-            <input id="v0num" class="numbox" type="number" min="0" max="20" step="0.5" value="0" />
-            <span class="unit">m/s up</span>
+            <input id="v0" type="range" min="-20" max="20" step="0.5" value="0" />
+            <input id="v0num" class="numbox" type="number" min="-20" max="20" step="0.5" value="0" />
+            <span class="unit">m/s (+ up / − down)</span>
           </label>
         </section>
 
@@ -91,6 +88,11 @@
           </fieldset>
         </section>
 
+        <section class="controls ground-controls">
+          <label for="ground">Ground position (m)</label>
+          <input id="ground" class="numbox" type="number" min="-2000" max="0" step="5" value="0" aria-describedby="groundHelp" />
+          <span id="groundHelp">For a cliff: launch at 0 m and set ground below 0 (e.g. −20 m).</span>
+        </section>
         <!-- Transport controls -->
         <section class="controls controls-transport">
           <div class="buttons">
@@ -108,7 +110,7 @@
         </section>
 
         <!-- Guided activity + vector/display options -->
-        <section class="controls controls-activity">
+        <details class="activity-options"><summary>Activity and display options</summary><section class="controls controls-activity">
           <div class="opt-group">
             <span class="group-label">Activity</span>
             <button id="presetToss" class="btn" type="button" aria-pressed="false">Upward toss investigation</button>
@@ -133,9 +135,13 @@
             against <b class="vec-a">a</b>.
           </p>
           <p class="apex-hint" id="apexHint" hidden></p>
-        </section>
+        </section></details>
       </div>
 
+
+  <main class="layout">
+    <!-- ===== LEFT: controls + animation + readouts ===== -->
+    <section class="col col-left">
       <!-- Falling-object animation -->
       <div class="panel panel-track">
         <canvas id="track" class="track-canvas"></canvas>

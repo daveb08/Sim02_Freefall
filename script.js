@@ -779,10 +779,10 @@ function pauseAtApexStop() {
   state.playing = false;
   state.atApex = true;
   if (rafId) cancelAnimationFrame(rafId);
-  render();
   updateActivityUI();
   setControlsEnabled();
   setPlayLabel();
+  render(); // render last so the canvas re-fits after the prompt changes layout
 }
 
 /* All active objects have landed: freeze and report. */
@@ -791,10 +791,10 @@ function finish() {
   state.playing = false;
   state.finished = true;
   if (rafId) cancelAnimationFrame(rafId);
-  render();
   showImpactBanner();
   setControlsEnabled();
   setPlayLabel();
+  render(); // render last so the canvas re-fits after the banner changes layout
 }
 
 /* Two arrival times count as "equal" only when they differ by less than

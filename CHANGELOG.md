@@ -3,6 +3,29 @@
 Notable changes to the Freefall Simulator (sim02 / sim02b). Dates are the
 day the work landed; entries are newest first.
 
+## 2026-09-13 — Two-column layout (fits 1280×800, no scrolling)
+
+Reflowed the page so it fits a ~1280×800 Canvas iframe with no scrolling
+(previously it was too tall). Functionality and physics unchanged.
+
+- Two-column layout: left column holds the controls + falling-object animation
+  + readouts (and the conditional impact/activity banners); right column holds
+  both graphs, stacked and sized to fill the column height.
+- The whole app fills the viewport (flex column, `overflow: hidden`); the
+  animation canvas flexes to use the space left under the controls, and the two
+  graphs each take half the right column. Canvases fill their panels via
+  absolute positioning, so they resize themselves (they already measure their
+  box with `getBoundingClientRect`).
+- Reduced base font, control padding/margins, and readout sizes to hit the
+  height budget. Removed the footer hint text (informational only) to save
+  vertical space.
+- Narrow screens (<1000 px wide) fall back to a single scrolling column.
+- Only rendering-order tweak in JS: `render()` now runs after a banner/prompt
+  toggles, so the canvas re-fits to the new layout (no physics change).
+- Verified headlessly at 1280×800/900/950: no overflow (body scroll height ≤
+  viewport); animation ~205 px and graphs ~363 px each at the 800 target;
+  impact flow, labels, and the toss/apex activity all still work.
+
 ## 2026-09-12 — Simpler impact wording
 
 Student-facing impact wording simplified; physics and all other behavior

@@ -6,201 +6,189 @@
   <title>Freefall Simulator</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="app">
   <header class="topbar">
     <h1>Freefall</h1>
     <p class="subtitle">
       1D vertical motion under gravity, with optional air resistance.
       <span class="sign-note">Up is positive, so falling means <b class="c-v">velocity</b> is negative.</span>
     </p>
-
-    <!-- ===== Setup controls ===== -->
-    <section class="controls">
-      <!-- Initial height y0 -->
-      <label class="slider">
-        <span class="slider-label">Initial height <i>y</i>&#8320;</span>
-        <input id="y0" type="range" min="5" max="2000" step="5" value="20" />
-        <input id="y0num" class="numbox" type="number" min="5" max="2000" step="5" value="20" />
-        <span class="unit">m</span>
-      </label>
-
-      <!-- Initial velocity v0 (up positive: 0 = drop, +20 = hardest upward toss) -->
-      <label class="slider">
-        <span class="slider-label">Initial velocity <i>v</i>&#8320; <span id="v0mode" class="mode">(drop from rest)</span></span>
-        <input id="v0" type="range" min="0" max="20" step="0.5" value="0" />
-        <input id="v0num" class="numbox" type="number" min="0" max="20" step="0.5" value="0" />
-        <span class="unit">m/s up</span>
-      </label>
-    </section>
-
-    <!-- ===== Air resistance + object selection (the pedagogical core) ===== -->
-    <section class="controls controls-objects">
-      <!-- Prominent air-resistance switch -->
-      <div class="air-toggle" role="group" aria-label="Air resistance">
-        <span class="air-label">Air resistance</span>
-        <div class="segmented">
-          <button id="airVacuum" class="btn btn-seg is-active" data-air="off" type="button">Vacuum</button>
-          <button id="airOn" class="btn btn-seg" data-air="on" type="button">Air (sea level)</button>
-        </div>
-      </div>
-
-      <!-- Object A -->
-      <label class="picker">
-        <span class="picker-label"><span class="swatch swatch-a"></span> Object</span>
-        <select id="objA" class="select">
-          <option value="feather">Feather</option>
-          <option value="hammer">Hammer</option>
-          <option value="basketball">Basketball</option>
-          <option value="bowling">Bowling ball</option>
-          <option value="skydiver">Skydiver (belly-to-earth)</option>
-          <option value="custom">Custom&hellip;</option>
-        </select>
-      </label>
-
-      <!-- Compare toggle -->
-      <label class="check">
-        <input id="compare" type="checkbox" />
-        <span>Compare two objects</span>
-      </label>
-
-      <!-- Object B (only shown when comparing) -->
-      <label class="picker" id="pickB" hidden>
-        <span class="picker-label"><span class="swatch swatch-b"></span> vs.</span>
-        <select id="objB" class="select">
-          <option value="feather">Feather</option>
-          <option value="hammer">Hammer</option>
-          <option value="basketball">Basketball</option>
-          <option value="bowling">Bowling ball</option>
-          <option value="skydiver">Skydiver (belly-to-earth)</option>
-          <option value="custom">Custom&hellip;</option>
-        </select>
-      </label>
-    </section>
-
-    <!-- Custom parameter panels (shown when the matching object = Custom) -->
-    <section class="custom-panels">
-      <fieldset class="custom" id="customA" hidden>
-        <legend><span class="swatch swatch-a"></span> Custom object A</legend>
-        <label>mass <input id="mA" class="numbox" type="number" min="0.001" max="500" step="0.001" value="1" /> kg</label>
-        <label>C<sub>d</sub> <input id="cdA" class="numbox" type="number" min="0.01" max="2" step="0.01" value="0.5" /></label>
-        <label>area <input id="areaA" class="numbox" type="number" min="0.0001" max="5" step="0.001" value="0.05" /> m&sup2;</label>
-      </fieldset>
-      <fieldset class="custom" id="customB" hidden>
-        <legend><span class="swatch swatch-b"></span> Custom object B</legend>
-        <label>mass <input id="mB" class="numbox" type="number" min="0.001" max="500" step="0.001" value="1" /> kg</label>
-        <label>C<sub>d</sub> <input id="cdB" class="numbox" type="number" min="0.01" max="2" step="0.01" value="0.5" /></label>
-        <label>area <input id="areaB" class="numbox" type="number" min="0.0001" max="5" step="0.001" value="0.05" /> m&sup2;</label>
-      </fieldset>
-    </section>
-
-    <!-- ===== Transport controls ===== -->
-    <section class="controls controls-transport">
-      <div class="buttons">
-        <button id="playPause" class="btn btn-primary" type="button">Play</button>
-        <button id="step" class="btn" type="button" title="Advance one frame (paused)">Step &#9654;&#124;</button>
-        <button id="reset" class="btn" type="button">Reset</button>
-      </div>
-      <div class="speeds" role="group" aria-label="Playback speed">
-        <span class="speeds-label">Speed</span>
-        <button class="btn btn-speed" data-speed="0.25" type="button">0.25&times;</button>
-        <button class="btn btn-speed" data-speed="0.5" type="button">0.5&times;</button>
-        <button class="btn btn-speed is-active" data-speed="1" type="button">1&times;</button>
-        <button class="btn btn-speed" data-speed="2" type="button">2&times;</button>
-      </div>
-    </section>
-
-    <!-- ===== Guided activity + vector/display options ===== -->
-    <section class="controls controls-activity">
-      <div class="opt-group">
-        <span class="group-label">Activity</span>
-        <button id="presetToss" class="btn" type="button" aria-pressed="false">Upward toss investigation</button>
-      </div>
-
-      <div class="opt-group" role="group" aria-label="Vector arrows">
-        <span class="group-label">Arrows</span>
-        <label class="check"><input id="showV" type="checkbox" checked />
-          <span>Show <b class="vec-v">v</b> (velocity)</span></label>
-        <label class="check"><input id="showA" type="checkbox" checked />
-          <span>Show <b class="vec-a">a</b> (acceleration)</span></label>
-      </div>
-
-      <div class="opt-group" role="group" aria-label="Display options">
-        <span class="group-label">Options</span>
-        <label class="check"><input id="pauseApex" type="checkbox" />
-          <span>Pause at highest point</span></label>
-        <label class="check"><input id="showFuture" type="checkbox" />
-          <span>Show future curves</span></label>
-      </div>
-
-      <p class="scale-note">
-        Arrow lengths use <b>separate scales</b> (different units) &mdash; watch how each
-        arrow changes over time; don&rsquo;t compare the length of <b class="vec-v">v</b>
-        against <b class="vec-a">a</b>.
-      </p>
-      <p class="apex-hint" id="apexHint" hidden></p>
-    </section>
   </header>
 
-  <!-- ===== Live numeric readout (one block per active object) ===== -->
-  <section class="readouts" id="readouts">
-    <div class="obj-readout ro-a" id="roA">
-      <div class="obj-head"><span class="swatch swatch-a"></span><span class="obj-name" id="nameA">Object A</span>
-        <span class="obj-impact" id="impA" hidden></span></div>
-      <div class="reads">
-        <div class="read"><span class="read-label" id="rlAt">t</span><span class="read-val" id="tA">0.00</span><span class="read-unit">s</span></div>
-        <div class="read"><span class="read-label" id="rlAy">y</span><span class="read-val" id="yA">20.00</span><span class="read-unit">m</span></div>
-        <div class="read"><span class="read-label" id="rlAv">v</span><span class="read-val" id="vA">0.00</span><span class="read-unit">m/s</span></div>
-        <div class="read"><span class="read-label" id="rlAa">a</span><span class="read-val" id="aA">-9.80</span><span class="read-unit">m/s&sup2;</span></div>
+  <main class="layout">
+    <!-- ===== LEFT: controls + animation + readouts ===== -->
+    <section class="col col-left">
+      <div class="controls-area">
+        <!-- Setup: initial height / velocity -->
+        <section class="controls">
+          <label class="slider">
+            <span class="slider-label">Initial height <i>y</i>&#8320;</span>
+            <input id="y0" type="range" min="5" max="2000" step="5" value="20" />
+            <input id="y0num" class="numbox" type="number" min="5" max="2000" step="5" value="20" />
+            <span class="unit">m</span>
+          </label>
+          <label class="slider">
+            <span class="slider-label">Initial velocity <i>v</i>&#8320; <span id="v0mode" class="mode">(drop from rest)</span></span>
+            <input id="v0" type="range" min="0" max="20" step="0.5" value="0" />
+            <input id="v0num" class="numbox" type="number" min="0" max="20" step="0.5" value="0" />
+            <span class="unit">m/s up</span>
+          </label>
+        </section>
+
+        <!-- Air resistance + object selection -->
+        <section class="controls controls-objects">
+          <div class="air-toggle" role="group" aria-label="Air resistance">
+            <span class="air-label">Air resistance</span>
+            <div class="segmented">
+              <button id="airVacuum" class="btn btn-seg is-active" data-air="off" type="button">Vacuum</button>
+              <button id="airOn" class="btn btn-seg" data-air="on" type="button">Air (sea level)</button>
+            </div>
+          </div>
+
+          <label class="picker">
+            <span class="picker-label"><span class="swatch swatch-a"></span> Object</span>
+            <select id="objA" class="select">
+              <option value="feather">Feather</option>
+              <option value="hammer">Hammer</option>
+              <option value="basketball">Basketball</option>
+              <option value="bowling">Bowling ball</option>
+              <option value="skydiver">Skydiver (belly-to-earth)</option>
+              <option value="custom">Custom&hellip;</option>
+            </select>
+          </label>
+
+          <label class="check">
+            <input id="compare" type="checkbox" />
+            <span>Compare two objects</span>
+          </label>
+
+          <label class="picker" id="pickB" hidden>
+            <span class="picker-label"><span class="swatch swatch-b"></span> vs.</span>
+            <select id="objB" class="select">
+              <option value="feather">Feather</option>
+              <option value="hammer">Hammer</option>
+              <option value="basketball">Basketball</option>
+              <option value="bowling">Bowling ball</option>
+              <option value="skydiver">Skydiver (belly-to-earth)</option>
+              <option value="custom">Custom&hellip;</option>
+            </select>
+          </label>
+        </section>
+
+        <!-- Custom parameter panels (shown when the matching object = Custom) -->
+        <section class="custom-panels">
+          <fieldset class="custom" id="customA" hidden>
+            <legend><span class="swatch swatch-a"></span> Custom object A</legend>
+            <label>mass <input id="mA" class="numbox" type="number" min="0.001" max="500" step="0.001" value="1" /> kg</label>
+            <label>C<sub>d</sub> <input id="cdA" class="numbox" type="number" min="0.01" max="2" step="0.01" value="0.5" /></label>
+            <label>area <input id="areaA" class="numbox" type="number" min="0.0001" max="5" step="0.001" value="0.05" /> m&sup2;</label>
+          </fieldset>
+          <fieldset class="custom" id="customB" hidden>
+            <legend><span class="swatch swatch-b"></span> Custom object B</legend>
+            <label>mass <input id="mB" class="numbox" type="number" min="0.001" max="500" step="0.001" value="1" /> kg</label>
+            <label>C<sub>d</sub> <input id="cdB" class="numbox" type="number" min="0.01" max="2" step="0.01" value="0.5" /></label>
+            <label>area <input id="areaB" class="numbox" type="number" min="0.0001" max="5" step="0.001" value="0.05" /> m&sup2;</label>
+          </fieldset>
+        </section>
+
+        <!-- Transport controls -->
+        <section class="controls controls-transport">
+          <div class="buttons">
+            <button id="playPause" class="btn btn-primary" type="button">Play</button>
+            <button id="step" class="btn" type="button" title="Advance one frame (paused)">Step &#9654;&#124;</button>
+            <button id="reset" class="btn" type="button">Reset</button>
+          </div>
+          <div class="speeds" role="group" aria-label="Playback speed">
+            <span class="speeds-label">Speed</span>
+            <button class="btn btn-speed" data-speed="0.25" type="button">0.25&times;</button>
+            <button class="btn btn-speed" data-speed="0.5" type="button">0.5&times;</button>
+            <button class="btn btn-speed is-active" data-speed="1" type="button">1&times;</button>
+            <button class="btn btn-speed" data-speed="2" type="button">2&times;</button>
+          </div>
+        </section>
+
+        <!-- Guided activity + vector/display options -->
+        <section class="controls controls-activity">
+          <div class="opt-group">
+            <span class="group-label">Activity</span>
+            <button id="presetToss" class="btn" type="button" aria-pressed="false">Upward toss investigation</button>
+          </div>
+          <div class="opt-group" role="group" aria-label="Vector arrows">
+            <span class="group-label">Arrows</span>
+            <label class="check"><input id="showV" type="checkbox" checked />
+              <span>Show <b class="vec-v">v</b> (velocity)</span></label>
+            <label class="check"><input id="showA" type="checkbox" checked />
+              <span>Show <b class="vec-a">a</b> (acceleration)</span></label>
+          </div>
+          <div class="opt-group" role="group" aria-label="Display options">
+            <span class="group-label">Options</span>
+            <label class="check"><input id="pauseApex" type="checkbox" />
+              <span>Pause at highest point</span></label>
+            <label class="check"><input id="showFuture" type="checkbox" />
+              <span>Show future curves</span></label>
+          </div>
+          <p class="scale-note">
+            Arrow lengths use <b>separate scales</b> (different units) &mdash; watch how each
+            arrow changes over time; don&rsquo;t compare the length of <b class="vec-v">v</b>
+            against <b class="vec-a">a</b>.
+          </p>
+          <p class="apex-hint" id="apexHint" hidden></p>
+        </section>
       </div>
-    </div>
 
-    <div class="obj-readout ro-b" id="roB" hidden>
-      <div class="obj-head"><span class="swatch swatch-b"></span><span class="obj-name" id="nameB">Object B</span>
-        <span class="obj-impact" id="impB" hidden></span></div>
-      <div class="reads">
-        <div class="read"><span class="read-label" id="rlBt">t</span><span class="read-val" id="tB">0.00</span><span class="read-unit">s</span></div>
-        <div class="read"><span class="read-label" id="rlBy">y</span><span class="read-val" id="yB">20.00</span><span class="read-unit">m</span></div>
-        <div class="read"><span class="read-label" id="rlBv">v</span><span class="read-val" id="vB">0.00</span><span class="read-unit">m/s</span></div>
-        <div class="read"><span class="read-label" id="rlBa">a</span><span class="read-val" id="aB">-9.80</span><span class="read-unit">m/s&sup2;</span></div>
+      <!-- Falling-object animation -->
+      <div class="panel panel-track">
+        <canvas id="track" class="track-canvas"></canvas>
       </div>
-    </div>
-  </section>
 
-  <!-- Impact / comparison banner -->
-  <section class="impact" id="impact" hidden>
-    <span class="impact-badge" id="impactBadge">Impact!</span>
-    <span class="impact-text" id="impactText"></span>
-  </section>
+      <!-- Live numeric readout (one block per active object) -->
+      <section class="readouts" id="readouts">
+        <div class="obj-readout ro-a" id="roA">
+          <div class="obj-head"><span class="swatch swatch-a"></span><span class="obj-name" id="nameA">Object A</span>
+            <span class="obj-impact" id="impA" hidden></span></div>
+          <div class="reads">
+            <div class="read"><span class="read-label" id="rlAt">t</span><span class="read-val" id="tA">0.00</span><span class="read-unit">s</span></div>
+            <div class="read"><span class="read-label" id="rlAy">y</span><span class="read-val" id="yA">20.00</span><span class="read-unit">m</span></div>
+            <div class="read"><span class="read-label" id="rlAv">v</span><span class="read-val" id="vA">0.00</span><span class="read-unit">m/s</span></div>
+            <div class="read"><span class="read-label" id="rlAa">a</span><span class="read-val" id="aA">-9.80</span><span class="read-unit">m/s&sup2;</span></div>
+          </div>
+        </div>
 
-  <!-- Guided-activity prompts (upward toss investigation) -->
-  <section class="activity-panel" id="activityPanel" hidden aria-live="polite">
-    <p class="activity-q" id="activityQuestion">
-      At the highest point, what will the velocity and acceleration be? Explain your prediction.
-    </p>
-    <p class="activity-o" id="activityObserve" hidden>
-      Compare your prediction with the readouts. Is zero velocity the same as zero acceleration?
-    </p>
-  </section>
+        <div class="obj-readout ro-b" id="roB" hidden>
+          <div class="obj-head"><span class="swatch swatch-b"></span><span class="obj-name" id="nameB">Object B</span>
+            <span class="obj-impact" id="impB" hidden></span></div>
+          <div class="reads">
+            <div class="read"><span class="read-label" id="rlBt">t</span><span class="read-val" id="tB">0.00</span><span class="read-unit">s</span></div>
+            <div class="read"><span class="read-label" id="rlBy">y</span><span class="read-val" id="yB">20.00</span><span class="read-unit">m</span></div>
+            <div class="read"><span class="read-label" id="rlBv">v</span><span class="read-val" id="vB">0.00</span><span class="read-unit">m/s</span></div>
+            <div class="read"><span class="read-label" id="rlBa">a</span><span class="read-val" id="aB">-9.80</span><span class="read-unit">m/s&sup2;</span></div>
+          </div>
+        </div>
+      </section>
 
-  <!-- ===== Stage: falling-object animation (left) + two live graphs (right) ===== -->
-  <section class="stage">
-    <div class="panel panel-track">
-      <canvas id="track" class="track-canvas"></canvas>
-    </div>
-    <div class="graphs">
-      <canvas id="graphY" class="graph-canvas"></canvas>
-      <canvas id="graphV" class="graph-canvas"></canvas>
-    </div>
-  </section>
+      <!-- Impact / comparison banner -->
+      <section class="impact" id="impact" hidden>
+        <span class="impact-badge" id="impactBadge">Impact!</span>
+        <span class="impact-text" id="impactText"></span>
+      </section>
 
-  <footer class="hint">
-    Motion is computed by numerical integration (semi-implicit Euler) so it
-    works with air resistance too:
-    <b class="c-a">drag = &frac12;&middot;C<sub>d</sub>&middot;&rho;&middot;A&middot;v&sup2;</b>,
-    opposing motion. In a vacuum (&rho; = 0) drag vanishes and every object
-    falls identically &mdash; feather and hammer land together.
-    Playback speed slows time, not the physics.
-  </footer>
+      <!-- Guided-activity prompts (upward toss investigation) -->
+      <section class="activity-panel" id="activityPanel" hidden aria-live="polite">
+        <p class="activity-q" id="activityQuestion">
+          At the highest point, what will the velocity and acceleration be? Explain your prediction.
+        </p>
+        <p class="activity-o" id="activityObserve" hidden>
+          Compare your prediction with the readouts. Is zero velocity the same as zero acceleration?
+        </p>
+      </section>
+    </section>
+
+    <!-- ===== RIGHT: both graphs, stacked ===== -->
+    <section class="col col-right">
+      <div class="graph-cell"><canvas id="graphY" class="graph-canvas"></canvas></div>
+      <div class="graph-cell"><canvas id="graphV" class="graph-canvas"></canvas></div>
+    </section>
+  </main>
 
   <script src="script.js"></script>
 </body>

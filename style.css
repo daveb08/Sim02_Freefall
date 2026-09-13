@@ -434,17 +434,131 @@ select:focus, input:focus, button:focus { outline: 3px solid #93c5fd; outline-of
   border-radius: var(--radius);
 }
 
-/* ---------- footer ---------- */
-.hint {
-  margin-top: 18px;
-  font-size: 16px;
-  color: var(--muted);
-  line-height: 1.6;
-}
 .c-x { color: var(--c-x); } .c-v { color: var(--c-v); } .c-a { color: var(--c-a); }
 
-/* Stack the animation above the graphs on narrower laptops */
-@media (max-width: 1180px) {
-  .stage { grid-template-columns: 1fr; }
-  .track-canvas { height: 380px; }
+/* ============================================================
+   Compact two-column layout — fit ~1280x800 with no scrolling.
+   Left column: controls + animation + readouts. Right column: the
+   two graphs, stacked and sized to fill the column height. These
+   rules override the larger defaults above; nothing here changes
+   behavior — the canvases size to their boxes via getBoundingClientRect.
+   ============================================================ */
+html, body { font-size: 14px; }
+
+body.app {
+  max-width: none;
+  height: 100vh;
+  margin: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+/* header */
+.topbar { flex: 0 0 auto; }
+.topbar h1 { font-size: 20px; margin: 0; }
+.subtitle { font-size: 12.5px; margin: 2px 0 0; }
+
+/* main 2-column grid fills the remaining height */
+.layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(500px, 46%) 1fr;
+  gap: 10px;
+}
+.col { min-width: 0; min-height: 0; }
+.col-left { display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+.controls-area { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; }
+
+/* compact control cards */
+.controls { padding: 5px 9px; margin: 0; gap: 5px 12px; border-radius: 8px; }
+.custom-panels { margin: 0; gap: 8px; }
+.custom { padding: 6px 10px 8px; }
+.custom legend { font-size: 13px; }
+.custom label { font-size: 13px; }
+.custom .numbox { width: 66px; }
+
+.slider { flex: 1 1 210px; min-width: 200px; grid-template-columns: auto 72px auto; gap: 3px 8px; }
+.slider-label { font-size: 12px; }
+.slider input[type="range"] { height: 22px; }
+.numbox { width: 72px; font-size: 14px; padding: 5px 7px; }
+
+.air-label, .group-label, .speeds-label { font-size: 11px; }
+.picker-label { font-size: 11px; }
+.select { font-size: 14px; padding: 6px 9px; min-width: 148px; }
+.check { font-size: 13px; }
+.check input { width: 18px; height: 18px; }
+
+.btn { font-size: 14px; padding: 6px 12px; }
+.btn-primary { min-width: 84px; }
+.btn-seg { font-size: 13px; padding: 6px 10px; }
+.btn-speed { font-size: 12px; padding: 5px 9px; min-width: 44px; }
+
+.controls-activity { gap: 6px 14px; }
+.controls-activity .opt-group { gap: 6px 12px; }
+.scale-note { font-size: 11px; margin: 1px 0 0; }
+.apex-hint { font-size: 12px; }
+
+/* animation panel fills the space left below the controls */
+.panel-track {
+  flex: 1 1 auto;
+  min-height: 120px;
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+}
+.track-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* compact readouts */
+.readouts { flex: 0 0 auto; margin: 0; gap: 8px; }
+.obj-readout { flex: 1 1 280px; padding: 4px 9px 6px; border-left-width: 6px; }
+.obj-head { margin-bottom: 3px; gap: 4px 8px; }
+.obj-name { font-size: 15px; }
+.obj-impact { font-size: 12px; padding: 2px 8px; }
+.reads { gap: 5px; }
+.read { padding: 2px 7px; }
+.read-label { font-size: 15px; }
+.read-val { font-size: 18px; }
+.read-unit { font-size: 11px; }
+.obj-readout.is-impact .reads { gap: 3px; }
+.obj-readout.is-impact .read-label { font-size: 13px; }
+
+/* conditional banners live in the left column and shrink the canvas when shown */
+.impact, .activity-panel { flex: 0 0 auto; margin: 0; }
+.impact { padding: 7px 12px; gap: 10px; }
+.impact-badge { font-size: 15px; padding: 3px 10px; }
+.impact-text { font-size: 14px; }
+.activity-panel { padding: 8px 12px; }
+.activity-q, .activity-o { font-size: 15px; }
+
+/* right column: two graphs stacked, each filling half the height */
+.col-right { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; }
+.graph-cell {
+  position: relative;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Narrow screens: fall back to a single scrolling column. */
+@media (max-width: 1000px) {
+  body.app { height: auto; overflow: visible; }
+  .layout { grid-template-columns: 1fr; }
+  .col-left { overflow: visible; }
+  .panel-track { min-height: 300px; }
+  .col-right { grid-template-rows: auto auto; }
+  .graph-cell { min-height: 240px; }
 }
